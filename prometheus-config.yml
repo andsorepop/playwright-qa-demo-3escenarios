@@ -1,0 +1,23 @@
+# =============================================================================
+# CONFIGURACIÓN PROMETHEUS - Agregar al archivo prometheus.yml
+# =============================================================================
+# Busca tu archivo prometheus.yml (generalmente en C:\prometheus\ o donde
+# instalaste Prometheus) y agrega el siguiente bloque en "scrape_configs:"
+
+scrape_configs:
+
+  # ── Job existente de Prometheus (no tocar) ──────────────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── NUEVO: Métricas de Playwright QA ───────────────────────────────────────
+  - job_name: 'playwright_qa'
+    scrape_interval: 30s        # Cada 30 segundos lee las métricas
+    static_configs:
+      - targets: ['localhost:9091']
+    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'playwright-qa-demo1'

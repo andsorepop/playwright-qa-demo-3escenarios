@@ -1,0 +1,129 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+  <title>Reporte QA v7 — Escenarios Completos</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem}
+    header{display:flex;align-items:center;gap:1rem;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid #1e293b}
+    .logo{width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.6rem}
+    h1{font-size:1.5rem;font-weight:700;color:#f8fafc}h1 span{font-size:.82rem;color:#94a3b8;display:block;margin-top:2px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1rem;margin-bottom:2rem}
+    .card{background:#1e293b;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #334155}
+    .card-label{font-size:.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em}
+    .card-value{font-size:1.9rem;font-weight:700;margin-top:.3rem}
+    .green{color:#4ade80}.red{color:#f87171}.blue{color:#60a5fa}.purple{color:#c084fc}.yellow{color:#fbbf24}
+    h2{font-size:.95rem;font-weight:600;color:#cbd5e1;margin-bottom:.8rem;margin-top:.5rem}
+    .section{margin-bottom:1.8rem}.tw{background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155}
+    table{width:100%;border-collapse:collapse;font-size:.82rem}
+    thead tr{background:#0f172a}thead th{text-align:left;padding:.6rem .9rem;color:#64748b;font-weight:600;text-transform:uppercase;font-size:.68rem;border-bottom:1px solid #334155}
+    tbody tr{border-bottom:1px solid #1e293b}tbody tr:hover{background:#1e293b88}tbody td{padding:.6rem .9rem;vertical-align:middle}
+    tbody tr.fail{background:rgba(239,68,68,.06)}tbody tr.fail td{color:#fca5a5}
+    .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.65rem;font-weight:700;text-transform:uppercase;white-space:nowrap}
+    .badge-login-v{background:#1e3a8a33;color:#93c5fd}.badge-login-i{background:#44403c33;color:#d1d5db}
+    .badge-crear-v{background:#14532d33;color:#86efac}.badge-crear-i{background:#78350f33;color:#fcd34d}
+    .badge-eliminar{background:#7f1d1d33;color:#fca5a5}.badge-logout{background:#1f293744;color:#94a3b8}
+    .badge-error{background:#991b1b33;color:#f87171}
+    td:first-child{color:#64748b;font-size:.75rem;font-family:monospace}
+    .prom{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.2rem;margin-bottom:1.8rem}
+    .prom pre{background:#0f172a;border-radius:8px;padding:.9rem;font-size:.76rem;color:#86efac;margin-top:.5rem;overflow-x:auto}
+    footer{margin-top:3rem;text-align:center;color:#475569;font-size:.76rem;border-top:1px solid #1e293b;padding-top:1.5rem}
+  </style></head><body>
+  <header><div class="logo">🧪</div>
+    <div><h1>Reporte QA — Escenarios Completos
+      <span>demo1.codigoveloz.lol &nbsp;|&nbsp; 4/7/2026, 11:02:09 p. m. &nbsp;|&nbsp; v7.0</span></h1></div></header>
+
+  <div class="grid">
+    <div class="card"><div class="card-label">Duración</div><div class="card-value blue">27.6s</div></div>
+    <div class="card"><div class="card-label">Tasa éxito</div><div class="card-value yellow">0%</div></div>
+    <div class="card"><div class="card-label">Total ✅</div><div class="card-value green">0</div></div>
+    <div class="card"><div class="card-label">Total ❌</div><div class="card-value red">1</div></div>
+    <div class="card"><div class="card-label">Login OK</div><div class="card-value blue">0/5</div></div>
+    <div class="card"><div class="card-label">Rechazo OK</div><div class="card-value blue">0/5</div></div>
+    <div class="card"><div class="card-label">Creados</div><div class="card-value purple">0/5</div></div>
+    <div class="card"><div class="card-label">Eliminados</div><div class="card-value purple">0/5</div></div>
+  </div>
+
+  <div class="section"><h2>📊 Resumen por Escenario</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Escenario</th><th>Pasaron</th><th>Fallaron</th><th>Total</th><th>%</th></tr></thead>
+      <tbody>
+    <tr>
+      <td>Login Válidos ✔</td>
+      <td class="green">0</td>
+      <td class="green">0</td>
+      <td>0</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Login Inválidos ✔</td>
+      <td class="green">0</td>
+      <td class="green">0</td>
+      <td>0</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Creación Válida ✔</td>
+      <td class="green">0</td>
+      <td class="green">0</td>
+      <td>0</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Creación Inválida ✔</td>
+      <td class="green">0</td>
+      <td class="green">0</td>
+      <td>0</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Eliminaciones ✔</td>
+      <td class="green">0</td>
+      <td class="green">0</td>
+      <td>0</td>
+      <td>—</td>
+    </tr></tbody>
+    </table></div></div>
+
+  <div class="prom"><h2>📡 Métricas → Prometheus → Grafana</h2>
+    <pre>playwright_login_validos_passed      0
+playwright_login_invalidos_passed    0
+playwright_creacion_validos_passed   0
+playwright_creacion_invalidos_passed 0
+playwright_eliminaciones_passed      0
+playwright_total_passed              0
+playwright_total_failed              1
+playwright_success_rate              0
+playwright_duration_seconds          27.6</pre></div>
+
+  <div class="section"><h2>⏱️ Duración por Escenario</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Paso</th><th>Tiempo</th><th>Barra</th></tr></thead>
+      <tbody>
+    <tr><td>1a_login_validos</td><td>27.60s</td>
+    <td><div style="background:#334155;border-radius:4px;height:8px">
+      <div style="background:#6366f1;border-radius:4px;height:8px;width:100%"></div>
+    </div></td></tr></tbody>
+    </table></div></div>
+
+  <div class="section"><h2>📋 Log completo de ejecución</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Descripción</th><th>Detalle</th><th>Estado</th></tr></thead>
+      <tbody>
+    <tr class="ok">
+      <td>23:01:41</td>
+      <td><span class="badge badge-login-v">LOGIN-V</span></td>
+      <td>Intento válido #1</td><td>asd@gmail.com</td>
+      <td>✅ OK</td>
+    </tr>
+    <tr class="fail">
+      <td>23:02:09</td>
+      <td><span class="badge badge-error">ERROR</span></td>
+      <td>Error crítico</td><td>page.goto: Test timeout of 30000ms exceeded.
+Call log:
+[2m  - navigating to "https://demo1.codigoveloz.lol/login", waiting until "domcontentloaded"[22m
+</td>
+      <td>❌ FAIL</td>
+    </tr></tbody>
+    </table></div></div>
+
+  <footer>Playwright QA v7.0 · Prometheus: <strong>localhost:9091/metrics</strong> · Grafana: <strong>localhost:3000</strong></footer>
+</body></html>

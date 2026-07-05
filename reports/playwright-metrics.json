@@ -1,0 +1,20 @@
+{
+  "loginValidos_passed": 0,
+  "loginValidos_failed": 0,
+  "loginInvalidos_passed": 0,
+  "loginInvalidos_failed": 0,
+  "creacionValidos_passed": 0,
+  "creacionValidos_failed": 0,
+  "creacionInvalidos_passed": 0,
+  "creacionInvalidos_failed": 0,
+  "eliminaciones_passed": 0,
+  "eliminaciones_failed": 0,
+  "total_passed": 0,
+  "total_failed": 1,
+  "durationSeconds": 27.6,
+  "successRate": 0,
+  "timestamp": 1783231329,
+  "stepDurations": {
+    "1a_login_validos": "27.60"
+  }
+}

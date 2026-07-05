@@ -1,0 +1,134 @@
+{
+  "title": "Playwright QA — Escenarios Completos",
+  "uid": "playwright-qa-v7",
+  "tags": ["playwright","qa","automation"],
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "templating": { "list": [{ "name": "datasource", "type": "datasource", "query": "prometheus", "hide": 0 }] },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "✅ Tasa de Éxito Global",
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100,
+        "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"yellow","value":60},{"color":"green","value":90}] },
+        "color": { "mode": "thresholds" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "expr": "playwright_success_rate", "legendFormat": "Éxito %" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "⏱️ Duración Total",
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "fixedColor": "blue", "mode": "fixed" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area", "textMode": "auto" },
+      "targets": [{ "expr": "playwright_duration_seconds", "legendFormat": "Segundos" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "✔ Total Pasaron",
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "playwright_total_passed", "legendFormat": "Pasaron" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "✖ Total Fallaron",
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null},{"color":"red","value":1}] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "playwright_total_failed", "legendFormat": "Fallaron" }]
+    },
+    {
+      "id": 5, "type": "stat", "title": "🔐 Login Válidos",
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [{ "expr": "playwright_login_validos_passed", "legendFormat": "de 5" }]
+    },
+    {
+      "id": 6, "type": "stat", "title": "🚫 Rechazos Correctos",
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [{ "expr": "playwright_login_invalidos_passed", "legendFormat": "de 5" }]
+    },
+    {
+      "id": 7, "type": "bargauge", "title": "📊 Resultados por Escenario",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "min": 0, "max": 5, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"yellow","value":3},{"color":"green","value":5}] }, "color": { "mode": "thresholds" } }
+      },
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient", "showUnfilled": true },
+      "targets": [
+        { "expr": "playwright_login_validos_passed",      "legendFormat": "Login Válidos ✔" },
+        { "expr": "playwright_login_invalidos_passed",    "legendFormat": "Login Inválidos Rechazados ✔" },
+        { "expr": "playwright_creacion_validos_passed",   "legendFormat": "Creaciones Válidas ✔" },
+        { "expr": "playwright_creacion_invalidos_passed", "legendFormat": "Creaciones Inválidas Rechazadas ✔" },
+        { "expr": "playwright_eliminaciones_passed",      "legendFormat": "Eliminaciones ✔" }
+      ]
+    },
+    {
+      "id": 8, "type": "gauge", "title": "🎯 Tasa por Escenario",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "min": 0, "max": 5, "thresholds": { "mode": "absolute", "steps": [{"color":"red","value":null},{"color":"yellow","value":3},{"color":"green","value":5}] }, "color": { "mode": "thresholds" } }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        { "expr": "playwright_login_validos_passed",    "legendFormat": "Login OK" },
+        { "expr": "playwright_creacion_validos_passed", "legendFormat": "Creación OK" },
+        { "expr": "playwright_eliminaciones_passed",    "legendFormat": "Eliminación OK" }
+      ]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "📈 Historial Tasa de Éxito",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "color": { "mode": "palette-classic" },
+        "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "auto" } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull","max","min"] } },
+      "targets": [{ "expr": "playwright_success_rate", "legendFormat": "Tasa Éxito %" }]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "⏱️ Duración por Escenario",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" },
+        "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "auto" } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull","max"] } },
+      "targets": [{ "expr": "playwright_step_duration_seconds", "legendFormat": "{{step}}" }]
+    },
+    {
+      "id": 11, "type": "stat", "title": "👤 Creados OK",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "playwright_creacion_validos_passed", "legendFormat": "de 5" }]
+    },
+    {
+      "id": 12, "type": "stat", "title": "🗑️ Eliminados OK",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "targets": [{ "expr": "playwright_eliminaciones_passed", "legendFormat": "de 5" }]
+    },
+    {
+      "id": 13, "type": "stat", "title": "🕐 Última Ejecución",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 21 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "dateTimeAsLocal" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "expr": "playwright_last_run_timestamp * 1000", "legendFormat": "Timestamp" }]
+    }
+  ]
+}
