@@ -1,222 +1,239 @@
 // =============================================================================
-// SCRIPT DE AUTOMATIZACIÓN QA - ESCENARIOS COMPLETOS
-// URL: https://demo1.codigoveloz.lol/
-// Playwright v7.0 — Login / Creación / Eliminación + Prometheus/Grafana
+// SCRIPT QA — ESCENARIOS COMPLETOS v8.0
+// Fix: timeout navegación + logout simplificado + reintentos en goto
 // =============================================================================
 
-const { test, expect } = require('@playwright/test');
+const { test } = require('@playwright/test');
 const fs   = require('fs');
 const path = require('path');
 
 // =============================================================================
-// ── DATOS DE PRUEBA ───────────────────────────────────────────────────────────
+// DATOS DE PRUEBA
 // =============================================================================
+const LOGINS_VALIDOS = Array(5).fill({ email: 'asd@gmail.com', password: '123123' });
 
-// 5 logins válidos
-const LOGINS_VALIDOS = [
-  { email: 'asd@gmail.com',   password: '123123' },
-  { email: 'asd@gmail.com',   password: '123123' },
-  { email: 'asd@gmail.com',   password: '123123' },
-  { email: 'asd@gmail.com',   password: '123123' },
-  { email: 'asd@gmail.com',   password: '123123' },
-];
-
-// 5 logins inválidos
 const LOGINS_INVALIDOS = [
-  { email: 'invalido@gmail.com',  password: 'wrongpass',   razon: 'Email inexistente' },
-  { email: 'asd@gmail.com',       password: 'wrongpass',   razon: 'Password incorrecto' },
-  { email: '',                    password: '123123',       razon: 'Email vacío' },
-  { email: 'asd@gmail.com',       password: '',             razon: 'Password vacío' },
-  { email: 'noexiste@test.com',   password: '000000',       razon: 'Usuario no registrado' },
+  { email: 'invalido@gmail.com', password: 'wrongpass',  razon: 'Email inexistente' },
+  { email: 'asd@gmail.com',      password: 'wrongpass',  razon: 'Password incorrecto' },
+  { email: '',                   password: '123123',      razon: 'Email vacío' },
+  { email: 'asd@gmail.com',      password: '',            razon: 'Password vacío' },
+  { email: 'noexiste@test.com',  password: '000000',      razon: 'Usuario no registrado' },
 ];
 
-// 5 usuarios válidos a crear (el tuyo + 4 similares)
 const USUARIOS_VALIDOS = [
-  { nombre: 'Ausberto Andres Vargas Silva', email: 'andsorepopcorns@gmail.com',  password: 'P4ssw0rd2026' },
-  { nombre: 'Maria Fernanda Lopez',         email: 'mfernanda.qa@gmail.com',      password: 'Secure2026!' },
-  { nombre: 'Carlos Eduardo Mendoza',       email: 'cemendoza.qa@gmail.com',      password: 'Test2026!!' },
-  { nombre: 'Lucia Patricia Suarez',        email: 'lpsuarez.qa@gmail.com',       password: 'Pass2026!!' },
-  { nombre: 'Roberto Javier Rios',          email: 'rjrios.qa@gmail.com',         password: 'Qa2026Pass!' },
+  { nombre: 'Ausberto Andres Vargas Silva', email: 'andsorepopcorns@gmail.com', password: 'P4ssw0rd2026' },
+  { nombre: 'Maria Fernanda Lopez',         email: 'mfernanda.qa@gmail.com',     password: 'Secure2026!' },
+  { nombre: 'Carlos Eduardo Mendoza',       email: 'cemendoza.qa@gmail.com',     password: 'Test2026!!' },
+  { nombre: 'Lucia Patricia Suarez',        email: 'lpsuarez.qa@gmail.com',      password: 'Pass2026!!' },
+  { nombre: 'Roberto Javier Rios',          email: 'rjrios.qa@gmail.com',        password: 'Qa2026Pass!' },
 ];
 
-// 5 usuarios inválidos (datos que deben fallar validación)
 const USUARIOS_INVALIDOS = [
-  { nombre: 'A',   email: 'invalido_corto@gmail.com',   password: '123',       razon: 'Nombre < 2 chars, password < 6 chars' },
-  { nombre: '',    email: 'invalido_sin_nombre@gmail.com', password: 'pass123', razon: 'Nombre vacío' },
-  { nombre: 'Test invalido email', email: 'correo-sin-arroba', password: 'pass123', razon: 'Email inválido' },
-  { nombre: 'Test sin password',   email: 'sinpass.qa@gmail.com', password: '', razon: 'Password vacío' },
-  { nombre: 'B',   email: 'b.qa@gmail.com',             password: '12345',     razon: 'Nombre y password cortos' },
+  { nombre: 'A',  email: 'invalido_corto@gmail.com',    password: '123',     razon: 'Nombre y pass muy cortos' },
+  { nombre: '',   email: 'invalido_vacio@gmail.com',     password: 'pass123', razon: 'Nombre vacío' },
+  { nombre: 'Test email mal', email: 'sin-arroba',       password: 'pass123', razon: 'Email sin @' },
+  { nombre: 'Test sin pass',  email: 'sinpass@gmail.com',password: '',        razon: 'Password vacío' },
+  { nombre: 'B',  email: 'b.qa@gmail.com',              password: '12345',   razon: 'Nombre y pass cortos' },
 ];
 
-// Credencial admin para operaciones post-login
 const ADMIN = { email: 'asd@gmail.com', password: '123123' };
+const BASE_URL = 'https://demo1.codigoveloz.lol';
 
 // =============================================================================
-// ── MÉTRICAS ──────────────────────────────────────────────────────────────────
+// MÉTRICAS
 // =============================================================================
-const metricas = {
-  // Login
+const M = {
   loginValidos_passed: 0, loginValidos_failed: 0,
   loginInvalidos_passed: 0, loginInvalidos_failed: 0,
-  // Creación
   creacionValidos_passed: 0, creacionValidos_failed: 0,
   creacionInvalidos_passed: 0, creacionInvalidos_failed: 0,
-  // Eliminación
   eliminaciones_passed: 0, eliminaciones_failed: 0,
-  // General
   total_passed: 0, total_failed: 0,
   durationSeconds: 0, successRate: 0, timestamp: 0,
   stepDurations: {},
 };
+const LOG = [];
+let t0 = Date.now();
 
-const reporteEventos = [];
-let tiempoInicio = Date.now();
-
-function registrar(tipo, descripcion, detalle = '', exito = true) {
+function reg(tipo, desc, detalle = '', ok = true) {
   const ts = new Date().toLocaleTimeString('es-BO', { hour12: false });
-  reporteEventos.push({ timestamp: ts, tipo, descripcion, detalle, exito });
-  console.log(`[${ts}] ${exito ? '✅' : '❌'} [${tipo}] ${descripcion}${detalle ? ' | ' + detalle : ''}`);
+  LOG.push({ timestamp: ts, tipo, descripcion: desc, detalle, exito: ok });
+  console.log(`[${ts}] ${ok ? '✅' : '❌'} [${tipo}] ${desc}${detalle ? ' | ' + detalle : ''}`);
 }
 
-function contabilizar(exito) {
-  if (exito) metricas.total_passed++; else metricas.total_failed++;
-}
+function cnt(ok) { if (ok) M.total_passed++; else M.total_failed++; }
 
-async function esperar(page, ms = 1500) {
-  await page.waitForLoadState('networkidle').catch(() => {});
-  await page.waitForTimeout(ms);
-}
-
-async function medirPaso(nombre, fn) {
-  const t0 = Date.now();
-  try { await fn(); }
-  finally { metricas.stepDurations[nombre] = ((Date.now() - t0) / 1000).toFixed(2); }
-}
-
-// =============================================================================
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-// =============================================================================
-
-// Guardar métricas JSON para Prometheus
-function guardarMetricas() {
-  const dur = (Date.now() - tiempoInicio) / 1000;
-  metricas.durationSeconds = parseFloat(dur.toFixed(2));
-  const total = metricas.total_passed + metricas.total_failed;
-  metricas.successRate = total > 0 ? parseFloat(((metricas.total_passed / total) * 100).toFixed(1)) : 0;
-  metricas.timestamp   = Math.floor(Date.now() / 1000);
-
-  const p = path.join(__dirname, '..', 'reports', 'playwright-metrics.json');
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(metricas, null, 2), 'utf-8');
-  console.log(`\n  📊 Métricas guardadas → ${p}`);
-  console.log(`     ✅ ${metricas.total_passed}  ❌ ${metricas.total_failed}  📈 ${metricas.successRate}%  ⏱ ${metricas.durationSeconds}s`);
-}
-
-// Navegar a /users con Livewire hidratado
-async function irAUsers(page) {
-  await page.goto('https://demo1.codigoveloz.lol/users', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2500);
-  await page.locator('button[wire\\:click="openCreate"]').waitFor({ state: 'visible', timeout: 15000 });
-}
-
-// Login como admin para gestión de usuarios
-async function loginAdmin(page) {
-  await page.goto('https://demo1.codigoveloz.lol/login', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1500);
-  await page.locator('input[wire\\:model="email"]').waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('input[wire\\:model="email"]').fill(ADMIN.email);
-  await page.locator('input[wire\\:model="password"]').fill(ADMIN.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL('**/users', { timeout: 15000 });
-  await page.waitForTimeout(2500);
-  await page.locator('button[wire\\:click="openCreate"]').waitFor({ state: 'visible', timeout: 15000 });
-}
-
-// Logout
-async function logout(page) {
-  const btn = page.locator('button[type="submit"]:has-text("Cerrar sesión")');
-  if (await btn.isVisible().catch(() => false)) {
-    await btn.click();
-    await page.waitForURL('**/login', { timeout: 10000 }).catch(() => {});
-    await page.waitForTimeout(1500);
+// ── GOTO con reintento ────────────────────────────────────────────────────────
+async function irA(page, url, espera = 2000) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 40000 });
+      await page.waitForTimeout(espera);
+      return;
+    } catch (e) {
+      if (i === 2) throw e;
+      console.log(`  ⚠️ Reintento ${i + 1} navegando a ${url}`);
+      await page.waitForTimeout(3000);
+    }
   }
 }
 
+async function medirPaso(nombre, fn) {
+  const t = Date.now();
+  try { await fn(); }
+  finally { M.stepDurations[nombre] = ((Date.now() - t) / 1000).toFixed(2); }
+}
+
 // =============================================================================
-// ── ESCENARIO 1: LOGINS ───────────────────────────────────────────────────────
+// HELPERS
 // =============================================================================
 
+// Logout: múltiples estrategias para cerrar sesión de forma confiable
+async function forzarLoginPage(page) {
+  await irA(page, `${BASE_URL}/login`, 1500);
+
+  // Si redirigió al dashboard → hay sesión activa, hay que cerrarla
+  if (!page.url().includes('login')) {
+
+    let logoutOk = false;
+
+    // Estrategia 1: click normal con scroll previo
+    try {
+      const btnOut = page.locator('button[type="submit"]:has-text("Cerrar sesión")');
+      if (await btnOut.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await btnOut.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(500);
+        await btnOut.click({ force: true, timeout: 5000 });
+        await page.waitForTimeout(2000);
+        logoutOk = page.url().includes('login');
+      }
+    } catch (_) {}
+
+    // Estrategia 2: click via JavaScript si el click normal falla
+    if (!logoutOk) {
+      try {
+        await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('button[type="submit"]')];
+          const btn  = btns.find(b => b.textContent.includes('Cerrar'));
+          if (btn) btn.click();
+        });
+        await page.waitForTimeout(2500);
+        logoutOk = page.url().includes('login');
+      } catch (_) {}
+    }
+
+    // Estrategia 3: llamar al endpoint de logout directamente
+    if (!logoutOk) {
+      try {
+        await page.goto(`${BASE_URL}/logout`, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.waitForTimeout(2000);
+        logoutOk = page.url().includes('login');
+      } catch (_) {}
+    }
+
+    // Estrategia 4: limpiar cookies y storage (fuerza sesión limpia)
+    if (!logoutOk) {
+      await page.context().clearCookies();
+      await page.evaluate(() => {
+        try { localStorage.clear(); sessionStorage.clear(); } catch(_) {}
+      });
+      await page.waitForTimeout(500);
+    }
+
+    // Volver a /login con sesión limpia
+    await irA(page, `${BASE_URL}/login`, 1500);
+  }
+}
+
+async function loginAdmin(page) {
+  await forzarLoginPage(page);
+  await page.locator('input[wire\\:model="email"]').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('input[wire\\:model="email"]').fill(ADMIN.email);
+  await page.locator('input[wire\\:model="password"]').fill(ADMIN.password);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForURL(`${BASE_URL}/users`, { timeout: 20000 });
+  await page.waitForTimeout(2500);
+  await page.locator('button[wire\\:click="openCreate"]').waitFor({ state: 'visible', timeout: 15000 });
+}
+
+async function irAUsers(page) {
+  if (!page.url().includes('users')) {
+    await irA(page, `${BASE_URL}/users`, 2500);
+  } else {
+    await page.waitForTimeout(1500);
+  }
+  await page.locator('button[wire\\:click="openCreate"]').waitFor({ state: 'visible', timeout: 15000 });
+}
+
+function guardarMetricas() {
+  const dur = (Date.now() - t0) / 1000;
+  M.durationSeconds = parseFloat(dur.toFixed(2));
+  const total = M.total_passed + M.total_failed;
+  M.successRate = total > 0 ? parseFloat(((M.total_passed / total) * 100).toFixed(1)) : 0;
+  M.timestamp   = Math.floor(Date.now() / 1000);
+  const p = path.join(__dirname, '..', 'reports', 'playwright-metrics.json');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(M, null, 2), 'utf-8');
+  console.log(`\n  📊 ✅${M.total_passed} ❌${M.total_failed} 📈${M.successRate}% ⏱${M.durationSeconds}s`);
+}
+
+// =============================================================================
+// ESCENARIO 1A — 5 LOGINS VÁLIDOS
+// =============================================================================
 async function escenarioLoginValidos(page) {
   console.log('\n' + '═'.repeat(55));
   console.log('  🔐 ESCENARIO 1A — 5 Logins Válidos');
   console.log('═'.repeat(55));
 
   for (let i = 0; i < LOGINS_VALIDOS.length; i++) {
-    const cred = LOGINS_VALIDOS[i];
-    registrar('LOGIN-V', `Intento válido #${i + 1}`, cred.email);
+    const c = LOGINS_VALIDOS[i];
+    reg('LOGIN-V', `Válido #${i + 1}`, c.email);
 
-    // Asegurar página de login limpia
-    await logout(page);
-    await page.goto('https://demo1.codigoveloz.lol/login', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1500);
+    await forzarLoginPage(page);
 
-    await page.locator('input[wire\\:model="email"]').waitFor({ state: 'visible', timeout: 10000 });
-    await page.locator('input[wire\\:model="email"]').fill(cred.email);
-    await page.locator('input[wire\\:model="password"]').fill(cred.password);
+    await page.locator('input[wire\\:model="email"]').waitFor({ state: 'visible', timeout: 12000 });
+    await page.locator('input[wire\\:model="email"]').fill(c.email);
+    await page.locator('input[wire\\:model="password"]').fill(c.password);
     await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(4000);
 
-    // Esperar resultado
-    await page.waitForTimeout(3000);
-    const exito = page.url().includes('users');
-
-    if (exito) { metricas.loginValidos_passed++; contabilizar(true); }
-    else       { metricas.loginValidos_failed++;  contabilizar(false); }
-
-    registrar('LOGIN-V', `Login válido #${i + 1}: ${exito ? 'PASÓ ✔' : 'FALLÓ ✖'}`, page.url(), exito);
+    const ok = page.url().includes('users');
+    if (ok) M.loginValidos_passed++; else M.loginValidos_failed++;
+    cnt(ok);
+    reg('LOGIN-V', `#${i + 1}: ${ok ? 'PASÓ ✔' : 'FALLÓ ✖'}`, page.url(), ok);
   }
 }
 
+// =============================================================================
+// ESCENARIO 1B — 5 LOGINS INVÁLIDOS
+// =============================================================================
 async function escenarioLoginInvalidos(page) {
   console.log('\n' + '═'.repeat(55));
   console.log('  🔐 ESCENARIO 1B — 5 Logins Inválidos');
   console.log('═'.repeat(55));
 
   for (let i = 0; i < LOGINS_INVALIDOS.length; i++) {
-    const cred = LOGINS_INVALIDOS[i];
-    registrar('LOGIN-I', `Intento inválido #${i + 1}`, cred.razon);
+    const c = LOGINS_INVALIDOS[i];
+    reg('LOGIN-I', `Inválido #${i + 1}`, c.razon);
 
-    await logout(page);
-    await page.goto('https://demo1.codigoveloz.lol/login', { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1500);
+    await forzarLoginPage(page);
 
-    await page.locator('input[wire\\:model="email"]').waitFor({ state: 'visible', timeout: 10000 });
-    await page.locator('input[wire\\:model="email"]').fill(cred.email);
-    await page.locator('input[wire\\:model="password"]').fill(cred.password);
+    await page.locator('input[wire\\:model="email"]').waitFor({ state: 'visible', timeout: 12000 });
+    await page.locator('input[wire\\:model="email"]').fill(c.email);
+    await page.locator('input[wire\\:model="password"]').fill(c.password);
     await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(4000);
 
-    await page.waitForTimeout(3000);
-
-    // Para logins inválidos: esperamos QUEDARSE en /login (NO redirigir a /users)
-    const seQueduEnLogin = !page.url().includes('users');
-    const exito = seQueduEnLogin; // el test PASA si el sistema rechazó correctamente
-
-    // Verificar mensaje de error
-    const tieneError = await page.locator('text=credenciales, text=incorrectas, text=invalid, [class*="error"], [class*="danger"]')
-      .isVisible().catch(() => false);
-
-    if (exito) { metricas.loginInvalidos_passed++; contabilizar(true); }
-    else       { metricas.loginInvalidos_failed++;  contabilizar(false); }
-
-    registrar('LOGIN-I',
-      `Inválido #${i + 1} rechazado: ${exito ? 'SÍ ✔ (correcto)' : 'NO ✖ (dejó entrar)'}`,
-      `${cred.razon} | error_msg: ${tieneError}`, exito);
+    const rechazado = !page.url().includes('users');
+    if (rechazado) M.loginInvalidos_passed++; else M.loginInvalidos_failed++;
+    cnt(rechazado);
+    reg('LOGIN-I', `#${i + 1} rechazado: ${rechazado ? 'SÍ ✔' : 'NO ✖ (dejó entrar)'}`, c.razon, rechazado);
   }
 }
 
 // =============================================================================
-// ── ESCENARIO 2: CREACIÓN DE USUARIOS ─────────────────────────────────────────
+// ESCENARIO 2A — 5 CREACIONES VÁLIDAS
 // =============================================================================
-
 async function escenarioCreacionValida(page) {
   console.log('\n' + '═'.repeat(55));
   console.log('  👤 ESCENARIO 2A — 5 Creaciones Válidas');
@@ -224,31 +241,32 @@ async function escenarioCreacionValida(page) {
 
   for (let i = 0; i < USUARIOS_VALIDOS.length; i++) {
     const u = USUARIOS_VALIDOS[i];
-    registrar('CREAR-V', `Usuario válido #${i + 1}`, u.nombre);
+    reg('CREAR-V', `Válido #${i + 1}`, u.nombre);
 
-    const btnNuevo = page.locator('button[wire\\:click="openCreate"]');
-    await btnNuevo.waitFor({ state: 'visible', timeout: 15000 });
-    await btnNuevo.click();
+    await irAUsers(page);
+
+    await page.locator('button[wire\\:click="openCreate"]').click();
     await page.waitForTimeout(2000);
 
     await page.locator('input[wire\\:model="name"]').waitFor({ state: 'visible', timeout: 10000 });
     await page.locator('input[wire\\:model="name"]').fill(u.nombre);
     await page.locator('input[wire\\:model="email"]').fill(u.email);
     await page.locator('input[wire\\:model="password"]').fill(u.password);
-
     await page.locator('button[wire\\:click="save"]').click();
-    await page.waitForTimeout(3000);
+
+    await page.waitForTimeout(3500);
     await page.waitForLoadState('networkidle').catch(() => {});
-    await page.waitForTimeout(1000);
 
-    const enLista = await page.locator(`text=${u.email}`).isVisible().catch(() => false);
-    if (enLista) { metricas.creacionValidos_passed++; contabilizar(true); }
-    else         { metricas.creacionValidos_failed++;  contabilizar(false); }
-
-    registrar('CREAR-V', `#${i + 1} en lista: ${enLista ? 'SÍ ✔' : 'NO ✖'}`, u.email, enLista);
+    const ok = await page.locator(`text=${u.email}`).isVisible().catch(() => false);
+    if (ok) M.creacionValidos_passed++; else M.creacionValidos_failed++;
+    cnt(ok);
+    reg('CREAR-V', `#${i + 1} en lista: ${ok ? 'SÍ ✔' : 'NO ✖'}`, u.email, ok);
   }
 }
 
+// =============================================================================
+// ESCENARIO 2B — 5 CREACIONES INVÁLIDAS
+// =============================================================================
 async function escenarioCreacionInvalida(page) {
   console.log('\n' + '═'.repeat(55));
   console.log('  👤 ESCENARIO 2B — 5 Creaciones Inválidas');
@@ -256,276 +274,212 @@ async function escenarioCreacionInvalida(page) {
 
   for (let i = 0; i < USUARIOS_INVALIDOS.length; i++) {
     const u = USUARIOS_INVALIDOS[i];
-    registrar('CREAR-I', `Usuario inválido #${i + 1}`, u.razon);
+    reg('CREAR-I', `Inválido #${i + 1}`, u.razon);
 
-    const btnNuevo = page.locator('button[wire\\:click="openCreate"]');
-    await btnNuevo.waitFor({ state: 'visible', timeout: 15000 });
-    await btnNuevo.click();
+    await irAUsers(page);
+
+    await page.locator('button[wire\\:click="openCreate"]').click();
     await page.waitForTimeout(2000);
 
     await page.locator('input[wire\\:model="name"]').waitFor({ state: 'visible', timeout: 10000 });
     await page.locator('input[wire\\:model="name"]').fill(u.nombre);
     await page.locator('input[wire\\:model="email"]').fill(u.email);
     await page.locator('input[wire\\:model="password"]').fill(u.password);
-
     await page.locator('button[wire\\:click="save"]').click();
     await page.waitForTimeout(2500);
 
-    // El test PASA si el sistema muestra error de validación (no creó el usuario)
-    const hayErrorValidacion = await page.locator('p.text-red-500, .text-red-500, [class*="error"]')
-      .first().isVisible().catch(() => false);
+    const hayError = await page.locator('p.text-red-500').first().isVisible().catch(() => false);
+    const modalAbierto = await page.locator('input[wire\\:model="name"]').isVisible().catch(() => false);
+    const ok = hayError || modalAbierto;
 
-    // También verificar que el modal sigue abierto (no cerró = validación fallida)
-    const modalSigueAbierto = await page.locator('input[wire\\:model="name"]').isVisible().catch(() => false);
+    if (ok) M.creacionInvalidos_passed++; else M.creacionInvalidos_failed++;
+    cnt(ok);
+    reg('CREAR-I', `#${i + 1} rechazado: ${ok ? 'SÍ ✔' : 'NO ✖'}`, u.razon, ok);
 
-    const exito = hayErrorValidacion || modalSigueAbierto;
+    // Cerrar modal si sigue abierto (con reintentos + fallback JS)
+    let modalCerrado = !(await page.locator('input[wire\\:model="name"]').isVisible({ timeout: 2000 }).catch(() => false));
 
-    if (exito) { metricas.creacionInvalidos_passed++; contabilizar(true); }
-    else       { metricas.creacionInvalidos_failed++;  contabilizar(false); }
+    for (let intento = 0; intento < 3 && !modalCerrado; intento++) {
+      const btnClose = page.locator('button[wire\\:click="closeModal"]').first();
 
-    registrar('CREAR-I',
-      `#${i + 1} rechazado: ${exito ? 'SÍ ✔ (validación ok)' : 'NO ✖ (debería rechazar)'}`,
-      u.razon, exito);
+      try {
+        await btnClose.waitFor({ state: 'visible', timeout: 4000 });
+        await btnClose.scrollIntoViewIfNeeded();
+        await btnClose.click({ force: true, timeout: 5000 });
+      } catch (_) {
+        // Fallback: click vía JavaScript si el click normal falla
+        await page.evaluate(() => {
+          const btn = [...document.querySelectorAll('button')]
+            .find(b => b.getAttribute('wire:click') === 'closeModal');
+          if (btn) btn.click();
+        }).catch(() => {});
+      }
 
-    // Cerrar modal si sigue abierto
-    const btnCancelar = page.locator('button[wire\\:click="closeModal"]');
-    if (await btnCancelar.isVisible().catch(() => false)) {
-      await btnCancelar.click();
       await page.waitForTimeout(1500);
+      modalCerrado = !(await page.locator('input[wire\\:model="name"]').isVisible({ timeout: 1500 }).catch(() => false));
+
+      if (!modalCerrado) {
+        console.log(`  ⚠️ Reintento ${intento + 1} cerrando modal (Cancelar)`);
+      }
+    }
+
+    if (!modalCerrado) {
+      reg('CREAR-I', `#${i + 1} advertencia`, 'No se pudo cerrar el modal con Cancelar', false);
     }
   }
 }
 
 // =============================================================================
-// ── ESCENARIO 3: ELIMINACIÓN ──────────────────────────────────────────────────
+// ESCENARIO 3 — 5 ELIMINACIONES
 // =============================================================================
-
 async function escenarioEliminacion(page) {
   console.log('\n' + '═'.repeat(55));
   console.log('  🗑️  ESCENARIO 3 — 5 Eliminaciones');
   console.log('═'.repeat(55));
 
-  // Eliminar los primeros 5 usuarios válidos creados en el escenario 2
-  const usuariosAEliminar = USUARIOS_VALIDOS.slice(0, 5);
+  for (let i = 0; i < USUARIOS_VALIDOS.length; i++) {
+    const u = USUARIOS_VALIDOS[i];
+    reg('ELIMINAR', `#${i + 1}`, u.email);
 
-  for (let i = 0; i < usuariosAEliminar.length; i++) {
-    const u = usuariosAEliminar[i];
-    registrar('ELIMINAR', `Eliminando #${i + 1}`, u.email);
+    await irAUsers(page);
 
-    // Buscar la fila en la tabla (puede estar en página 2 si hay paginación)
+    // Buscar fila — si no está en página 1, ir a página 2
     let fila = page.locator(`tr:has-text("${u.email}")`).first();
-    let filaVisible = await fila.isVisible().catch(() => false);
-
-    // Si no está en página actual, buscar en página 2
-    if (!filaVisible) {
-      const btnNext = page.locator('button[wire\\:click*="nextPage"], button:has-text("Next")').first();
+    if (!await fila.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const btnNext = page.locator('button[wire\\:click*="nextPage"]').first();
       if (await btnNext.isVisible().catch(() => false)) {
         await btnNext.click();
         await page.waitForTimeout(2000);
         fila = page.locator(`tr:has-text("${u.email}")`).first();
-        filaVisible = await fila.isVisible().catch(() => false);
       }
     }
 
-    if (!filaVisible) {
-      registrar('ELIMINAR', `#${i + 1} no encontrado en lista`, u.email, false);
-      metricas.eliminaciones_failed++;
-      contabilizar(false);
-      continue;
+    if (!await fila.isVisible({ timeout: 5000 }).catch(() => false)) {
+      reg('ELIMINAR', `#${i + 1} no encontrado`, u.email, false);
+      M.eliminaciones_failed++; cnt(false); continue;
     }
 
-    // Clic en botón eliminar (ícono papelera, title="Eliminar")
-    const btnEliminar = fila.locator('button[title="Eliminar"]');
-    await btnEliminar.waitFor({ state: 'visible', timeout: 8000 });
-    await btnEliminar.click();
-    registrar('ELIMINAR', 'Modal de confirmación abierto');
+    await fila.locator('button[title="Eliminar"]').click();
     await page.waitForTimeout(2000);
 
-    // Botón de confirmación — confirmado: wire:click="delete"
-    const btnConfirmar = page.locator('button[wire\\:click="delete"]');
-    await btnConfirmar.waitFor({ state: 'visible', timeout: 8000 });
-    await btnConfirmar.click();
-    registrar('ELIMINAR', 'Confirmación clickeada');
-
-    await page.waitForTimeout(3000);
+    const btnConfirm = page.locator('button[wire\\:click="delete"]');
+    await btnConfirm.waitFor({ state: 'visible', timeout: 8000 });
+    await btnConfirm.click();
+    await page.waitForTimeout(3500);
     await page.waitForLoadState('networkidle').catch(() => {});
-    await page.waitForTimeout(1000);
 
-    // Verificar que ya NO aparece en la lista
-    const sigueEnLista = await page.locator(`text=${u.email}`).isVisible().catch(() => false);
-    const exito = !sigueEnLista;
-
-    if (exito) { metricas.eliminaciones_passed++; contabilizar(true); }
-    else       { metricas.eliminaciones_failed++;  contabilizar(false); }
-
-    registrar('ELIMINAR', `#${i + 1} eliminado: ${exito ? 'SÍ ✔' : 'NO ✖'}`, u.email, exito);
+    const aun = await page.locator(`text=${u.email}`).isVisible().catch(() => false);
+    const ok  = !aun;
+    if (ok) M.eliminaciones_passed++; else M.eliminaciones_failed++;
+    cnt(ok);
+    reg('ELIMINAR', `#${i + 1} eliminado: ${ok ? 'SÍ ✔' : 'NO ✖'}`, u.email, ok);
   }
 }
 
 // =============================================================================
-// ── REPORTE HTML ──────────────────────────────────────────────────────────────
+// REPORTE HTML
 // =============================================================================
-function generarReporteHTML() {
-  const ahora    = new Date().toLocaleString('es-BO');
-  const exitosos = reporteEventos.filter(e => e.exito).length;
-  const fallidos = reporteEventos.filter(e => !e.exito).length;
-
-  const filas = reporteEventos.map(e => `
+function generarHTML() {
+  const ahora = new Date().toLocaleString('es-BO');
+  const filas = LOG.map(e => `
     <tr class="${e.exito ? 'ok' : 'fail'}">
       <td>${e.timestamp}</td>
-      <td><span class="badge badge-${e.tipo.toLowerCase()}">${e.tipo}</span></td>
-      <td>${e.descripcion}</td><td>${e.detalle || '—'}</td>
-      <td>${e.exito ? '✅ OK' : '❌ FAIL'}</td>
-    </tr>`).join('');
+      <td><span class="badge b-${e.tipo.toLowerCase().replace(/[^a-z]/g,'-')}">${e.tipo}</span></td>
+      <td>${e.descripcion}</td><td>${e.detalle||'—'}</td>
+      <td>${e.exito?'✅':'❌'}</td></tr>`).join('');
 
-  const escenarios = [
-    { label: 'Login Válidos ✔',     passed: metricas.loginValidos_passed,      failed: metricas.loginValidos_failed },
-    { label: 'Login Inválidos ✔',   passed: metricas.loginInvalidos_passed,    failed: metricas.loginInvalidos_failed },
-    { label: 'Creación Válida ✔',   passed: metricas.creacionValidos_passed,   failed: metricas.creacionValidos_failed },
-    { label: 'Creación Inválida ✔', passed: metricas.creacionInvalidos_passed, failed: metricas.creacionInvalidos_failed },
-    { label: 'Eliminaciones ✔',     passed: metricas.eliminaciones_passed,     failed: metricas.eliminaciones_failed },
-  ];
+  const esc = [
+    ['1A — Login Válidos',          M.loginValidos_passed,      M.loginValidos_failed],
+    ['1B — Login Inválidos Rech.',  M.loginInvalidos_passed,    M.loginInvalidos_failed],
+    ['2A — Creación Válida',        M.creacionValidos_passed,   M.creacionValidos_failed],
+    ['2B — Creación Inválida Rech.',M.creacionInvalidos_passed, M.creacionInvalidos_failed],
+    ['3  — Eliminación',            M.eliminaciones_passed,     M.eliminaciones_failed],
+  ].map(([l,p,f]) => `<tr><td>${l}</td><td style="color:#4ade80">${p}</td><td style="color:${f>0?'#f87171':'#4ade80'}">${f}</td><td>${p+f}</td><td>${p+f>0?((p/(p+f))*100).toFixed(0)+'%':'—'}</td></tr>`).join('');
 
-  const escRows = escenarios.map(s => `
-    <tr>
-      <td>${s.label}</td>
-      <td class="green">${s.passed}</td>
-      <td class="${s.failed > 0 ? 'red' : 'green'}">${s.failed}</td>
-      <td>${s.passed + s.failed}</td>
-      <td>${s.passed + s.failed > 0 ? ((s.passed/(s.passed+s.failed))*100).toFixed(0) + '%' : '—'}</td>
-    </tr>`).join('');
-
-  const stepRows = Object.entries(metricas.stepDurations).map(([k, v]) => `
-    <tr><td>${k}</td><td>${v}s</td>
-    <td><div style="background:#334155;border-radius:4px;height:8px">
-      <div style="background:#6366f1;border-radius:4px;height:8px;width:${Math.min(parseFloat(v)*5,100)}%"></div>
-    </div></td></tr>`).join('');
+  const steps = Object.entries(M.stepDurations).map(([k,v])=>`
+    <tr><td>${k}</td><td>${v}s</td><td>
+      <div style="background:#334155;border-radius:4px;height:8px;width:100%">
+        <div style="background:#6366f1;border-radius:4px;height:8px;width:${Math.min(parseFloat(v)*3,100)}%"></div>
+      </div></td></tr>`).join('');
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
-  <title>Reporte QA v7 — Escenarios Completos</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem}
+  <title>Reporte QA v8</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;padding:2rem}
     header{display:flex;align-items:center;gap:1rem;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid #1e293b}
-    .logo{width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.6rem}
-    h1{font-size:1.5rem;font-weight:700;color:#f8fafc}h1 span{font-size:.82rem;color:#94a3b8;display:block;margin-top:2px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1rem;margin-bottom:2rem}
-    .card{background:#1e293b;border-radius:12px;padding:1.1rem 1.3rem;border:1px solid #334155}
-    .card-label{font-size:.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em}
-    .card-value{font-size:1.9rem;font-weight:700;margin-top:.3rem}
-    .green{color:#4ade80}.red{color:#f87171}.blue{color:#60a5fa}.purple{color:#c084fc}.yellow{color:#fbbf24}
-    h2{font-size:.95rem;font-weight:600;color:#cbd5e1;margin-bottom:.8rem;margin-top:.5rem}
-    .section{margin-bottom:1.8rem}.tw{background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155}
-    table{width:100%;border-collapse:collapse;font-size:.82rem}
-    thead tr{background:#0f172a}thead th{text-align:left;padding:.6rem .9rem;color:#64748b;font-weight:600;text-transform:uppercase;font-size:.68rem;border-bottom:1px solid #334155}
-    tbody tr{border-bottom:1px solid #1e293b}tbody tr:hover{background:#1e293b88}tbody td{padding:.6rem .9rem;vertical-align:middle}
+    .logo{width:50px;height:50px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem}
+    h1{font-size:1.4rem;font-weight:700;color:#f8fafc}h1 span{font-size:.8rem;color:#94a3b8;display:block;margin-top:2px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.8rem;margin-bottom:2rem}
+    .card{background:#1e293b;border-radius:10px;padding:1rem 1.2rem;border:1px solid #334155}
+    .lbl{font-size:.68rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em}
+    .val{font-size:1.8rem;font-weight:700;margin-top:.2rem}
+    .g{color:#4ade80}.r{color:#f87171}.b{color:#60a5fa}.p{color:#c084fc}.y{color:#fbbf24}
+    h2{font-size:.9rem;font-weight:600;color:#cbd5e1;margin-bottom:.7rem}
+    .sec{margin-bottom:1.5rem}.tw{background:#1e293b;border-radius:10px;overflow:hidden;border:1px solid #334155}
+    table{width:100%;border-collapse:collapse;font-size:.8rem}
+    thead tr{background:#0f172a}thead th{text-align:left;padding:.6rem .9rem;color:#64748b;font-weight:600;text-transform:uppercase;font-size:.66rem;border-bottom:1px solid #334155}
+    tbody tr{border-bottom:1px solid #1e293b}tbody tr:hover{background:#1e293b88}tbody td{padding:.55rem .9rem;vertical-align:middle}
     tbody tr.fail{background:rgba(239,68,68,.06)}tbody tr.fail td{color:#fca5a5}
-    .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.65rem;font-weight:700;text-transform:uppercase;white-space:nowrap}
-    .badge-login-v{background:#1e3a8a33;color:#93c5fd}.badge-login-i{background:#44403c33;color:#d1d5db}
-    .badge-crear-v{background:#14532d33;color:#86efac}.badge-crear-i{background:#78350f33;color:#fcd34d}
-    .badge-eliminar{background:#7f1d1d33;color:#fca5a5}.badge-logout{background:#1f293744;color:#94a3b8}
-    .badge-error{background:#991b1b33;color:#f87171}
-    td:first-child{color:#64748b;font-size:.75rem;font-family:monospace}
-    .prom{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.2rem;margin-bottom:1.8rem}
-    .prom pre{background:#0f172a;border-radius:8px;padding:.9rem;font-size:.76rem;color:#86efac;margin-top:.5rem;overflow-x:auto}
-    footer{margin-top:3rem;text-align:center;color:#475569;font-size:.76rem;border-top:1px solid #1e293b;padding-top:1.5rem}
+    .badge{display:inline-block;padding:.15rem .45rem;border-radius:999px;font-size:.62rem;font-weight:700;text-transform:uppercase}
+    .b-login-v{background:#1e3a8a33;color:#93c5fd}.b-login-i{background:#44403c33;color:#d1d5db}
+    .b-crear-v{background:#14532d33;color:#86efac}.b-crear-i{background:#78350f33;color:#fcd34d}
+    .b-eliminar{background:#7f1d1d33;color:#fca5a5}.b-error{background:#991b1b33;color:#f87171}
+    td:first-child{color:#64748b;font-size:.72rem;font-family:monospace}
+    footer{margin-top:2rem;text-align:center;color:#475569;font-size:.74rem;border-top:1px solid #1e293b;padding-top:1.2rem}
   </style></head><body>
-  <header><div class="logo">🧪</div>
-    <div><h1>Reporte QA — Escenarios Completos
-      <span>demo1.codigoveloz.lol &nbsp;|&nbsp; ${ahora} &nbsp;|&nbsp; v7.0</span></h1></div></header>
-
+  <header><div class="logo">🧪</div><div><h1>Reporte QA v8.0 — Escenarios Completos
+    <span>${BASE_URL} &nbsp;|&nbsp; ${ahora}</span></h1></div></header>
   <div class="grid">
-    <div class="card"><div class="card-label">Duración</div><div class="card-value blue">${metricas.durationSeconds}s</div></div>
-    <div class="card"><div class="card-label">Tasa éxito</div><div class="card-value ${metricas.successRate===100?'green':'yellow'}">${metricas.successRate}%</div></div>
-    <div class="card"><div class="card-label">Total ✅</div><div class="card-value green">${metricas.total_passed}</div></div>
-    <div class="card"><div class="card-label">Total ❌</div><div class="card-value ${metricas.total_failed>0?'red':'green'}">${metricas.total_failed}</div></div>
-    <div class="card"><div class="card-label">Login OK</div><div class="card-value blue">${metricas.loginValidos_passed}/5</div></div>
-    <div class="card"><div class="card-label">Rechazo OK</div><div class="card-value blue">${metricas.loginInvalidos_passed}/5</div></div>
-    <div class="card"><div class="card-label">Creados</div><div class="card-value purple">${metricas.creacionValidos_passed}/5</div></div>
-    <div class="card"><div class="card-label">Eliminados</div><div class="card-value purple">${metricas.eliminaciones_passed}/5</div></div>
+    <div class="card"><div class="lbl">Duración</div><div class="val b">${M.durationSeconds}s</div></div>
+    <div class="card"><div class="lbl">Éxito</div><div class="val ${M.successRate>=90?'g':'y'}">${M.successRate}%</div></div>
+    <div class="card"><div class="lbl">✅ Total</div><div class="val g">${M.total_passed}</div></div>
+    <div class="card"><div class="lbl">❌ Total</div><div class="val ${M.total_failed>0?'r':'g'}">${M.total_failed}</div></div>
+    <div class="card"><div class="lbl">Login OK</div><div class="val b">${M.loginValidos_passed}/5</div></div>
+    <div class="card"><div class="lbl">Rechazo OK</div><div class="val b">${M.loginInvalidos_passed}/5</div></div>
+    <div class="card"><div class="lbl">Creados</div><div class="val p">${M.creacionValidos_passed}/5</div></div>
+    <div class="card"><div class="lbl">Eliminados</div><div class="val p">${M.eliminaciones_passed}/5</div></div>
   </div>
-
-  <div class="section"><h2>📊 Resumen por Escenario</h2>
-    <div class="tw"><table>
-      <thead><tr><th>Escenario</th><th>Pasaron</th><th>Fallaron</th><th>Total</th><th>%</th></tr></thead>
-      <tbody>${escRows}</tbody>
-    </table></div></div>
-
-  <div class="prom"><h2>📡 Métricas → Prometheus → Grafana</h2>
-    <pre>playwright_login_validos_passed      ${metricas.loginValidos_passed}
-playwright_login_invalidos_passed    ${metricas.loginInvalidos_passed}
-playwright_creacion_validos_passed   ${metricas.creacionValidos_passed}
-playwright_creacion_invalidos_passed ${metricas.creacionInvalidos_passed}
-playwright_eliminaciones_passed      ${metricas.eliminaciones_passed}
-playwright_total_passed              ${metricas.total_passed}
-playwright_total_failed              ${metricas.total_failed}
-playwright_success_rate              ${metricas.successRate}
-playwright_duration_seconds          ${metricas.durationSeconds}</pre></div>
-
-  <div class="section"><h2>⏱️ Duración por Escenario</h2>
-    <div class="tw"><table>
-      <thead><tr><th>Paso</th><th>Tiempo</th><th>Barra</th></tr></thead>
-      <tbody>${stepRows || '<tr><td colspan="3">Sin datos</td></tr>'}</tbody>
-    </table></div></div>
-
-  <div class="section"><h2>📋 Log completo de ejecución</h2>
-    <div class="tw"><table>
-      <thead><tr><th>Hora</th><th>Tipo</th><th>Descripción</th><th>Detalle</th><th>Estado</th></tr></thead>
-      <tbody>${filas}</tbody>
-    </table></div></div>
-
-  <footer>Playwright QA v7.0 · Prometheus: <strong>localhost:9091/metrics</strong> · Grafana: <strong>localhost:3000</strong></footer>
+  <div class="sec"><h2>📊 Resumen por Escenario</h2><div class="tw"><table>
+    <thead><tr><th>Escenario</th><th>✅ Pasaron</th><th>❌ Fallaron</th><th>Total</th><th>% Éxito</th></tr></thead>
+    <tbody>${esc}</tbody></table></div></div>
+  <div class="sec"><h2>⏱️ Duración por Escenario</h2><div class="tw"><table>
+    <thead><tr><th>Paso</th><th>Tiempo</th><th>Barra</th></tr></thead>
+    <tbody>${steps||'<tr><td colspan="3">Sin datos</td></tr>'}</tbody></table></div></div>
+  <div class="sec"><h2>📋 Log completo</h2><div class="tw"><table>
+    <thead><tr><th>Hora</th><th>Tipo</th><th>Descripción</th><th>Detalle</th><th>Estado</th></tr></thead>
+    <tbody>${filas}</tbody></table></div></div>
+  <footer>Playwright QA v8.0 · Prometheus: localhost:9091/metrics · Grafana: localhost:3000</footer>
 </body></html>`;
 }
 
 // =============================================================================
-// ── TEST PRINCIPAL ────────────────────────────────────────────────────────────
+// TEST PRINCIPAL
 // =============================================================================
 test('QA Completo — Login + Creación + Eliminación', async ({ page }) => {
-  tiempoInicio = Date.now();
+  t0 = Date.now();
   console.log('\n' + '═'.repeat(55));
-  console.log('  🧪 PLAYWRIGHT QA v7.0 — ESCENARIOS COMPLETOS');
-  console.log('  Prometheus → Grafana integrado');
+  console.log('  🧪 PLAYWRIGHT QA v8.0 — ESCENARIOS COMPLETOS');
   console.log('═'.repeat(55));
 
   try {
-    // ── ESCENARIO 1: LOGINS ─────────────────────────────────────────────────
     await medirPaso('1a_login_validos',   () => escenarioLoginValidos(page));
     await medirPaso('1b_login_invalidos', () => escenarioLoginInvalidos(page));
-
-    // ── Login admin para escenarios 2 y 3 ──────────────────────────────────
     await loginAdmin(page);
-
-    // ── ESCENARIO 2: CREACIÓN ───────────────────────────────────────────────
     await medirPaso('2a_creacion_valida',   () => escenarioCreacionValida(page));
     await medirPaso('2b_creacion_invalida', () => escenarioCreacionInvalida(page));
-
-    // ── Recargar /users para tener lista actualizada ────────────────────────
     await irAUsers(page);
-
-    // ── ESCENARIO 3: ELIMINACIÓN ────────────────────────────────────────────
     await medirPaso('3_eliminacion', () => escenarioEliminacion(page));
-
-    registrar('RESUMEN', `✔ Todos los escenarios completados`,
-      `✅${metricas.total_passed} ❌${metricas.total_failed} 📈${metricas.successRate}%`);
-
-  } catch (error) {
-    metricas.total_failed++;
-    registrar('ERROR', 'Error crítico', error.message, false);
-    throw error;
-
+    reg('RESUMEN', `Completado`, `✅${M.total_passed} ❌${M.total_failed} 📈${M.successRate}%`);
+  } catch (e) {
+    M.total_failed++;
+    reg('ERROR', 'Error crítico', e.message, false);
+    throw e;
   } finally {
     guardarMetricas();
-
-    const reportePath = path.join(__dirname, '..', 'reports', 'reporte-qa.html');
-    fs.mkdirSync(path.dirname(reportePath), { recursive: true });
-    fs.writeFileSync(reportePath, generarReporteHTML(), 'utf-8');
-
-    console.log('\n' + '═'.repeat(55));
-    console.log(`  📄 HTML:       reports/reporte-qa.html`);
-    console.log(`  📊 MÉTRICAS:   reports/playwright-metrics.json`);
-    console.log(`  📡 PROMETHEUS: http://localhost:9091/metrics`);
-    console.log(`  📈 GRAFANA:    http://localhost:3000`);
-    console.log('═'.repeat(55) + '\n');
+    const rp = path.join(__dirname, '..', 'reports', 'reporte-qa.html');
+    fs.mkdirSync(path.dirname(rp), { recursive: true });
+    fs.writeFileSync(rp, generarHTML(), 'utf-8');
+    console.log(`\n  📄 HTML:    reports/reporte-qa.html`);
+    console.log(`  📡 METRICS: http://localhost:9091/metrics`);
+    console.log(`  📈 GRAFANA: http://localhost:3000\n`);
   }
 });
